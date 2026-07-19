@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>ScoreUp — AI SAT Coach</title>
+<style>
+  :root{
+    --bg:#0f1220; --panel:#171a2b; --panel-2:#1e2238; --line:#2a2f4a;
+    --text:#e8eaf3; --muted:#9aa0bd; --accent:#6c7bff; --accent-2:#8a7bff;
+    --good:#37c98b; --bad:#ff6b6b; --warn:#ffb454; --chip:#242945;
+    --radius:16px; --shadow:0 10px 40px rgba(0,0,0,.35);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Inter,sans-serif;
+    background:radial-gradient(1200px 700px at 80% -10%,#1b2140 0,var(--bg) 55%);
+    color:var(--text); min-height:100vh; line-height:1.5;
+  }
+  a{color:var(--accent)}
+  header{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:18px 24px; border-bottom:1px solid var(--line);
+    position:sticky; top:0; background:rgba(15,18,32,.85); backdrop-filter:blur(10px); z-index:20;
+  }
+  .brand{display:flex; align-items:center; gap:12px; font-weight:800; letter-spacing:.3px}
+  .logo{
+    width:34px;height:34px;border-radius:10px;
+    background:linear-gradient(135deg,var(--accent),var(--accent-2));
+    display:grid;place-items:center;font-size:18px;box-shadow:var(--shadow)
+  }
+  .brand small{display:block;font-weight:500;color:var(--muted);font-size:11px;letter-spacing:.5px}
+  nav{display:flex;gap:6px;background:var(--panel);padding:6px;border-radius:12px;border:1px solid var(--line)}
+  nav button{
+    border:0;background:transparent;color:var(--muted);padding:9px 16px;border-radius:8px;
+    font-weight:600;cursor:pointer;font-size:14px;transition:.15s
+  }
+  nav button.active{background:var(--accent);color:#fff}
+  nav button:hover:not(.active){color:var(--text)}
+  main{max-width:940px;margin:0 auto;padding:28px 24px 80px}
+  .view{display:none;animation:fade .25s ease}
+  .view.active{display:block}
+  @keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+  h1{font-size:26px;margin:0 0 6px}
+  .sub{color:var(--muted);margin:0 0 22px}
+  .card{
+    background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+    padding:22px;margin-bottom:18px;box-shadow:var(--shadow)
+  }
+  label{display:block;font-weight:600;font-size:13px;margin:0 0 6px;color:var(--muted)}
+  textarea,input,select{
+    width:100%;background:var(--panel-2);border:1px solid var(--line);color:var(--text);
+    border-radius:10px;padding:12px 14px;font-size:15px;font-family:inherit;resize:vertical
+  }
+  textarea:focus,input:focus,select:focus{outline:2px solid var(--accent);border-color:transparent}
+  .row{display:flex;gap:14px;flex-wrap:wrap}
+  .row>div{flex:1;min-width:180px}
+  .btn{
+    background:linear-gradient(135deg,var(--accent),var(--accent-2));color:#fff;border:0;
+    padding:12px 22px;border-radius:10px;font-weight:700;font-size:15px;cursor:pointer;transition:.15s;
+    display:inline-flex;align-items:center;gap:8px
+  }
+  .btn:hover{transform:translateY(-1px);filter:brightness(1.08)}
+  .btn:disabled{opacity:.5;cursor:not-allowed;transform:none}
+  .btn.ghost{background:var(--chip);color:var(--text)}
+  .btn.sm{padding:8px 14px;font-size:13px}
+  .muted{color:var(--muted)}
+  .chip{display:inline-block;background:var(--chip);border:1px solid var(--line);color:var(--text);
+    padding:4px 12px;border-radius:999px;font-size:12px;font-weight:600;margin:2px}
+  .chip.good{color:var(--good);border-color:rgba(55,201,139,.3)}
+  .chip.bad{color:var(--bad);border-color:rgba(255,107,107,.3)}
+  .result{margin-top:18px;padding-top:18px;border-top:1px dashed var(--line)}
+  .result h3{margin:0 0 8px;font-size:15px;color:var(--accent)}
+  .result p{margin:0 0 14px}
+  .practice-q{background:var(--panel-2);border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:14px}
+  .practice-q .qtext{font-weight:600;margin-bottom:10px}
+  .opt{display:block;width:100%;text-align:left;background:var(--panel);border:1px solid var(--line);
+    color:var(--text);padding:10px 14px;border-radius:8px;margin-bottom:8px;cursor:pointer;transition:.12s;font-size:14px}
+  .opt:hover{border-color:var(--accent)}
+  .opt.correct{border-color:var(--good);background:rgba(55,201,139,.12)}
+  .opt.wrong{border-color:var(--bad);background:rgba(255,107,107,.12)}
+  .stat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px;margin-bottom:20px}
+  .stat{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px}
+  .stat .n{font-size:30px;font-weight:800}
+  .stat .l{color:var(--muted);font-size:13px;margin-top:2px}
+  .bar-row{margin-bottom:14px}
+  .bar-row .top{display:flex;justify-content:space-between;font-size:14px;margin-bottom:6px}
+  .bar{height:10px;background:var(--panel-2);border-radius:999px;overflow:hidden}
+  .bar > span{display:block;height:100%;border-radius:999px;background:linear-gradient(90deg,var(--bad),var(--warn),var(--good))}
+  .empty{text-align:center;color:var(--muted);padding:40px 20px}
+  .spinner{width:16px;height:16px;border:2px solid rgba(255,255,255,.4);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite;display:inline-block}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .banner{background:rgba(255,180,84,.12);border:1px solid rgba(255,180,84,.35);color:var(--warn);
+    padding:12px 16px;border-radius:10px;font-size:14px;margin-bottom:18px}
+  .banner.hide{display:none}
+  .kbd{font-family:monospace;background:var(--chip);padding:1px 6px;border-radius:5px;font-size:12px}
+  footer{max-width:940px;margin:0 auto;padding:20px 24px 60px;color:var(--muted);font-size:13px;text-align:center}
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">
+    <div class="logo">▲</div>
+    <div>ScoreUp<small>AI SAT COACH</small></div>
+  </div>
+  <nav>
+    <button data-view="analyze" class="active">Analyze</button>
+    <button data-view="practice">Practice</button>
+    <button data-view="progress">Progress</button>
+    <button data-view="settings">Settings</button>
+  </nav>
+</header>
+
+<main>
+  <div id="apiBanner" class="banner">
+    No AI key set yet — add one in <b>Settings</b> to enable explanations &amp; practice generation. You can still explore the demo.
+  </div>
+
+  <!-- ANALYZE -->
+  <section id="analyze" class="view active">
+    <h1>Analyze a question you got wrong</h1>
+    <p class="sub">Paste any SAT question. ScoreUp explains the concept, tells you why your answer missed, and logs your weak area.</p>
+    <div class="card">
+      <label>The question</label>
+      <textarea id="qText" rows="4" placeholder="Paste the full question (and answer choices if it has them)…"></textarea>
+      <div class="row" style="margin-top:14px">
+        <div>
+          <label>Your answer</label>
+          <input id="qYour" placeholder="e.g. B, or your working" />
+        </div>
+        <div>
+          <label>Correct answer (optional)</label>
+          <input id="qCorrect" placeholder="e.g. D" />
+        </div>
+        <div>
+          <label>Section</label>
+          <select id="qSection">
+            <option>Math</option>
+            <option>Reading &amp; Writing</option>
+          </select>
+        </div>
+      </div>
+      <div style="margin-top:16px;display:flex;gap:10px;flex-wrap:wrap">
+        <button class="btn" id="analyzeBtn">Analyze &amp; explain</button>
+        <button class="btn ghost sm" id="demoBtn">Load a demo question</button>
+      </div>
+      <div id="analyzeResult"></div>
+    </div>
+  </section>
+
+  <!-- PRACTICE -->
+  <section id="practice" class="view">
+    <h1>Targeted practice</h1>
+    <p class="sub">Generate fresh questions on any topic — great for drilling a weak area straight after analyzing it.</p>
+    <div class="card">
+      <div class="row">
+        <div style="flex:2">
+          <label>Topic</label>
+          <input id="pTopic" placeholder="e.g. Systems of linear equations" />
+        </div>
+        <div>
+          <label>Difficulty</label>
+          <select id="pDiff"><option>Easy</option><option selected>Medium</option><option>Hard</option></select>
+        </div>
+      </div>
+      <div style="margin-top:16px">
+        <button class="btn" id="genBtn">Generate 3 questions</button>
+      </div>
+      <div id="practiceResult" style="margin-top:16px"></div>
+    </div>
+  </section>
+
+  <!-- PROGRESS -->
+  <section id="progress" class="view">
+    <h1>Your progress</h1>
+    <p class="sub">Every question you analyze feeds this dashboard so you always know your weakest topics.</p>
+    <div class="stat-grid" id="statGrid"></div>
+    <div class="card">
+      <h3 style="margin:0 0 16px">Weak areas by topic</h3>
+      <div id="weakAreas"></div>
+    </div>
+    <button class="btn ghost sm" id="clearBtn">Clear all history</button>
+  </section>
+
+  <!-- SETTINGS -->
+  <section id="settings" class="view">
+    <h1>Settings</h1>
+    <p class="sub">Your key is stored only in this browser (localStorage) and sent directly to your chosen API. Nothing is stored on any server.</p>
+    <div class="card">
+      <label>API key</label>
+      <input id="setKey" type="password" placeholder="sk-…" />
+      <div class="row" style="margin-top:14px">
+        <div>
+          <label>API endpoint (OpenAI-compatible)</label>
+          <input id="setEndpoint" placeholder="https://api.openai.com/v1/chat/completions" />
+        </div>
+        <div>
+          <label>Model</label>
+          <input id="setModel" placeholder="gpt-4o-mini" />
+        </div>
+      </div>
+      <p class="muted" style="font-size:13px;margin-top:12px">
+        Works with any OpenAI-compatible endpoint — OpenAI, Groq (free tier), OpenRouter, Together, etc.
+        Just paste that provider's endpoint, key, and a model name.
+      </p>
+      <button class="btn" id="saveSetBtn" style="margin-top:8px">Save settings</button>
+      <span id="saveMsg" class="chip good" style="display:none;margin-left:10px">Saved ✓</span>
+    </div>
+  </section>
+</main>
+
+<footer>
+  Built by a student, for students. ScoreUp is an open project — extend it, deploy it, share it.
+</footer>
+
+<script>
+/* ---------- storage ---------- */
+const LS = {
+  get(k,d){ try{ return JSON.parse(localStorage.getItem(k)) ?? d }catch(e){ return d } },
+  set(k,v){ localStorage.setItem(k, JSON.stringify(v)) }
+};
+let settings = LS.get('scoreup_settings', { key:'', endpoint:'https://api.openai.com/v1/chat/completions', model:'gpt-4o-mini' });
+let history  = LS.get('scoreup_history', []);
+
+/* ---------- nav ---------- */
+document.querySelectorAll('nav button').forEach(b=>{
+  b.onclick=()=>{
+    document.querySelectorAll('nav button').forEach(x=>x.classList.remove('active'));
+    document.querySelectorAll('.view').forEach(x=>x.classList.remove('active'));
+    b.classList.add('active');
+    document.getElementById(b.dataset.view).classList.add('active');
+    if(b.dataset.view==='progress') renderProgress();
+  };
+});
+
+/* ---------- AI call ---------- */
+async function callAI(system, user){
+  if(!settings.key) throw new Error('NO_KEY');
+  const res = await fetch(settings.endpoint,{
+    method:'POST',
+    headers:{'Content-Type':'application/json','Authorization':'Bearer '+settings.key},
+    body:JSON.stringify({
+      model:settings.model,
+      messages:[{role:'system',content:system},{role:'user',content:user}],
+      temperature:0.4
+    })
+  });
+  if(!res.ok){ throw new Error('API error '+res.status+': '+(await res.text()).slice(0,200)); }
+  const data = await res.json();
+  return data.choices[0].message.content;
+}
+function parseJSON(txt){
+  const m = txt.match(/\{[\s\S]*\}|\[[\s\S]*\]/);
+  return JSON.parse(m ? m[0] : txt);
+}
+
+/* ---------- analyze ---------- */
+const analyzeBtn=document.getElementById('analyzeBtn');
+analyzeBtn.onclick=async()=>{
+  const q=document.getElementById('qText').value.trim();
+  if(!q){ alert('Paste a question first.'); return; }
+  const your=document.getElementById('qYour').value.trim();
+  const correct=document.getElementById('qCorrect').value.trim();
+  const section=document.getElementById('qSection').value;
+  const box=document.getElementById('analyzeResult');
+  analyzeBtn.disabled=true; analyzeBtn.innerHTML='<span class="spinner"></span> Analyzing…';
+  const sys=`You are an expert SAT tutor. Analyze the student's question and respond ONLY with JSON:
+{"topic":"short specific topic name","explanation":"clear step-by-step solution","key_concept":"the one idea to remember","why_wrong":"why their answer was likely wrong (or a common trap)","got_it_right":true/false}`;
+  const usr=`Section: ${section}\nQuestion: ${q}\nStudent's answer: ${your||'(not given)'}\nCorrect answer: ${correct||'(not given)'}`;
+  try{
+    const out=await callAI(sys,usr);
+    const r=parseJSON(out);
+    logResult(section, r.topic, !!r.got_it_right);
+    box.innerHTML=`<div class="result">
+      <span class="chip">${section}</span><span class="chip">${esc(r.topic)}</span>
+      ${correct? (r.got_it_right?'<span class="chip good">Correct ✓</span>':'<span class="chip bad">Missed ✗</span>'):''}
+      <h3>Solution</h3><p>${esc(r.explanation)}</p>
+      <h3>Key concept to remember</h3><p>${esc(r.key_concept)}</p>
+      ${r.why_wrong?`<h3>Why answers get missed here</h3><p>${esc(r.why_wrong)}</p>`:''}
+      <button class="btn sm" onclick="practiceTopic('${esc(r.topic).replace(/'/g,"")}')">Practice this topic →</button>
+    </div>`;
+  }catch(e){ box.innerHTML=errHTML(e); }
+  analyzeBtn.disabled=false; analyzeBtn.textContent='Analyze & explain';
+};
+
+/* ---------- practice ---------- */
+function practiceTopic(t){
+  document.querySelector('nav button[data-view="practice"]').click();
+  document.getElementById('pTopic').value=t;
+  document.getElementById('genBtn').click();
+}
+const genBtn=document.getElementById('genBtn');
+genBtn.onclick=async()=>{
+  const topic=document.getElementById('pTopic').value.trim();
+  if(!topic){ alert('Enter a topic.'); return; }
+  const diff=document.getElementById('pDiff').value;
+  const box=document.getElementById('practiceResult');
+  genBtn.disabled=true; genBtn.innerHTML='<span class="spinner"></span> Generating…';
+  const sys=`You are an SAT question writer. Create SAT-style multiple choice questions. Respond ONLY with JSON:
+{"questions":[{"q":"question text","choices":["A) ...","B) ...","C) ...","D) ..."],"answer":0,"explain":"why that answer is correct"}]}
+answer is the 0-based index of the correct choice.`;
+  try{
+    const out=await callAI(sys,`Write 3 ${diff} SAT questions on: ${topic}`);
+    const r=parseJSON(out);
+    box.innerHTML=r.questions.map((q,i)=>renderPractice(q,i)).join('');
+  }catch(e){ box.innerHTML=errHTML(e); }
+  genBtn.disabled=false; genBtn.textContent='Generate 3 questions';
+};
+function renderPractice(q,i){
+  const opts=q.choices.map((c,j)=>`<button class="opt" onclick="pick(this,${i},${j},${q.answer})">${esc(c)}</button>`).join('');
+  return `<div class="practice-q" id="pq${i}">
+    <div class="qtext">${i+1}. ${esc(q.q)}</div>${opts}
+    <div class="explain muted" id="ex${i}" style="display:none;margin-top:8px;font-size:14px">${esc(q.explain)}</div>
+  </div>`;
+}
+function pick(el,qi,choice,answer){
+  const parent=el.parentElement;
+  [...parent.querySelectorAll('.opt')].forEach((o,idx)=>{
+    o.disabled=true;
+    if(idx===answer) o.classList.add('correct');
+    if(idx===choice && choice!==answer) o.classList.add('wrong');
+  });
+  document.getElementById('ex'+qi).style.display='block';
+}
+
+/* ---------- progress ---------- */
+function logResult(section, topic, right){
+  history.push({ section, topic, right, t:Date.now() });
+  LS.set('scoreup_history', history);
+}
+function renderProgress(){
+  const grid=document.getElementById('statGrid');
+  const total=history.length;
+  const correct=history.filter(h=>h.right).length;
+  const acc= total? Math.round(correct/total*100):0;
+  const topics=[...new Set(history.map(h=>h.topic))].length;
+  grid.innerHTML=`
+    <div class="stat"><div class="n">${total}</div><div class="l">Questions analyzed</div></div>
+    <div class="stat"><div class="n">${acc}%</div><div class="l">Accuracy</div></div>
+    <div class="stat"><div class="n">${topics}</div><div class="l">Topics seen</div></div>`;
+  const wa=document.getElementById('weakAreas');
+  if(!total){ wa.innerHTML='<div class="empty">No data yet — analyze a few questions and your weak areas appear here.</div>'; return; }
+  const byTopic={};
+  history.forEach(h=>{ (byTopic[h.topic]=byTopic[h.topic]||{t:0,c:0}); byTopic[h.topic].t++; if(h.right)byTopic[h.topic].c++; });
+  const rows=Object.entries(byTopic)
+    .map(([k,v])=>({k, pct:Math.round(v.c/v.t*100), n:v.t}))
+    .sort((a,b)=>a.pct-b.pct);
+  wa.innerHTML=rows.map(r=>`
+    <div class="bar-row">
+      <div class="top"><span>${esc(r.k)} <span class="muted">(${r.n})</span></span><span>${r.pct}%</span></div>
+      <div class="bar"><span style="width:${r.pct}%"></span></div>
+    </div>`).join('');
+}
+document.getElementById('clearBtn').onclick=()=>{
+  if(confirm('Clear all analyzed history?')){ history=[]; LS.set('scoreup_history',[]); renderProgress(); }
+};
+
+/* ---------- settings ---------- */
+function loadSettings(){
+  document.getElementById('setKey').value=settings.key;
+  document.getElementById('setEndpoint').value=settings.endpoint;
+  document.getElementById('setModel').value=settings.model;
+  document.getElementById('apiBanner').classList.toggle('hide', !!settings.key);
+}
+document.getElementById('saveSetBtn').onclick=()=>{
+  settings={
+    key:document.getElementById('setKey').value.trim(),
+    endpoint:document.getElementById('setEndpoint').value.trim()||'https://api.openai.com/v1/chat/completions',
+    model:document.getElementById('setModel').value.trim()||'gpt-4o-mini'
+  };
+  LS.set('scoreup_settings',settings);
+  loadSettings();
+  const m=document.getElementById('saveMsg'); m.style.display='inline-block'; setTimeout(()=>m.style.display='none',1800);
+};
+
+/* ---------- demo ---------- */
+document.getElementById('demoBtn').onclick=()=>{
+  document.getElementById('qText').value="If 3x - 7 = 2x + 5, what is the value of x? (A) -2 (B) 5 (C) 12 (D) 2";
+  document.getElementById('qYour').value="C";
+  document.getElementById('qCorrect').value="C";
+};
+
+/* ---------- helpers ---------- */
+function esc(s){ return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function errHTML(e){
+  if(e.message==='NO_KEY') return `<div class="result banner" style="display:block">Add your API key in <b>Settings</b> to use this feature.</div>`;
+  return `<div class="result banner" style="display:block">Something went wrong: ${esc(e.message)}</div>`;
+}
+loadSettings();
+</script>
+</body>
+</html>
