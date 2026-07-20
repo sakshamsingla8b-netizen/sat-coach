@@ -108,7 +108,6 @@
     <button data-view="analyze" class="active">Analyze</button>
     <button data-view="practice">Practice</button>
     <button data-view="progress">Progress</button>
-    <button data-view="settings">Settings</button>
   </nav>
 </header>
 
@@ -235,13 +234,14 @@ document.querySelectorAll('nav button').forEach(b=>{
 });
 
 /* ---------- AI call ---------- */
+// The app talks to our own proxy, which holds the API key secretly on the server.
+// This means visitors never need their own key.
+const PROXY_URL = 'https://scoreup-proxy.sakshamsingla8b.workers.dev';
 async function callAI(system, user){
-  if(!settings.key) throw new Error('NO_KEY');
-  const res = await fetch(settings.endpoint,{
+  const res = await fetch(PROXY_URL,{
     method:'POST',
-    headers:{'Content-Type':'application/json','Authorization':'Bearer '+settings.key},
+    headers:{'Content-Type':'application/json'},
     body:JSON.stringify({
-      model:settings.model,
       messages:[{role:'system',content:system},{role:'user',content:user}],
       temperature:0.4
     })
@@ -361,7 +361,7 @@ function loadSettings(){
   document.getElementById('setKey').value=settings.key;
   document.getElementById('setEndpoint').value=settings.endpoint;
   document.getElementById('setModel').value=settings.model;
-  document.getElementById('apiBanner').classList.toggle('hide', !!settings.key);
+  document.getElementById('apiBanner').classList.add('hide');
 }
 document.getElementById('saveSetBtn').onclick=()=>{
   settings={
