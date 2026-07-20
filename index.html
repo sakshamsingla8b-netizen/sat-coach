@@ -298,16 +298,25 @@ genBtn.onclick=async()=>{
   const box=document.getElementById('practiceResult');
   genBtn.disabled=true; genBtn.innerHTML='<span class="spinner"></span> Generating…';
   const sys=`You are an expert SAT question writer. Write original SAT-style multiple choice questions.
-CRITICAL rules for accuracy:
-1. Solve each question yourself, step by step, before writing it.
-2. Put your final solved value as one of the four choices.
-3. Set "answer" to the 0-based index (0=A, 1=B, 2=C, 3=D) of the choice that EXACTLY equals your solved value. Double-check choices[answer] is truly correct.
-4. "explain" must be 1-2 short sentences: state the correct value and the key step. Do NOT ramble, do NOT second-guess, do NOT mention other options.
+Rules:
+1. Solve each question step by step BEFORE writing choices.
+2. "solution" = the exact text of the correct choice, copied verbatim from your choices array (including the letter, e.g. "A) 2").
+3. "explain" = ONE or TWO short sentences max: the key step and the answer. Never mention other options, never second-guess.
 Respond ONLY with JSON:
-{"questions":[{"q":"question text","choices":["A) ...","B) ...","C) ...","D) ..."],"answer":0,"explain":"..."}]}`;
+{"questions":[{"q":"question text","choices":["A) ...","B) ...","C) ...","D) ..."],"solution":"A) ...","explain":"..."}]}`;
   try{
     const out=await callAI(sys,`Write 3 ${diff} SAT questions on: ${topic}`, 0.15);
     const r=parseJSON(out);
+    // Robust answer matching: find the choice that matches the stated solution text,
+    // instead of trusting an index the AI might mislabel.
+    r.questions.forEach(q=>{
+      const sol=(q.solution||'').trim().toLowerCase();
+      let idx=q.choices.findIndex(c=>c.trim().toLowerCase()===sol);
+      if(idx<0) idx=q.choices.findIndex(c=>sol && c.trim().toLowerCase().includes(sol.replace(/^[a-d]\)\s*/,'')));
+      q.answer = idx>=0 ? idx : (typeof q.answer==='number'? q.answer : 0);
+      // Cap runaway explanations
+      if(q.explain && q.explain.length>320) q.explain=q.explain.slice(0,320)+'…';
+    });
     box.innerHTML=r.questions.map((q,i)=>renderPractice(q,i)).join('');
   }catch(e){ box.innerHTML=errHTML(e); }
   genBtn.disabled=false; genBtn.textContent='Generate 3 questions';
