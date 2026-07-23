@@ -101,6 +101,19 @@
   .banner.hide{display:none}
   .kbd{font-family:monospace;background:var(--chip);padding:1px 6px;border-radius:5px;font-size:12px}
   footer{max-width:940px;margin:0 auto;padding:20px 24px 60px;color:var(--muted);font-size:13px;text-align:center}
+  .ptimer{display:inline-block;background:var(--chip);border:1px solid var(--line);color:var(--text);
+    padding:6px 12px;border-radius:999px;font-size:13px;font-weight:700;margin-bottom:12px}
+  .qbtns{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+  .saved-item{background:var(--panel-2);border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin-bottom:10px;font-size:14px}
+  @media (max-width:640px){
+    header{flex-direction:column;gap:12px;align-items:flex-start}
+    nav{width:100%;justify-content:space-between}
+    nav button{flex:1;text-align:center;padding:9px 8px}
+    main{padding:20px 16px 60px}
+    .card{padding:16px}
+    h1{font-size:23px}
+    .row>div{min-width:100%}
+  }
 </style>
 </head>
 <body>
@@ -226,6 +239,35 @@ const LS = {
 };
 let settings = LS.get('scoreup_settings', { key:'', endpoint:'https://api.openai.com/v1/chat/completions', model:'gpt-4o-mini' });
 let history  = LS.get('scoreup_history', []);
+let saved    = LS.get('scoreup_saved', []);
+
+/* ---------- streak ---------- */
+function markToday(){
+  const d=new Date().toISOString().slice(0,10);
+  let days=LS.get('scoreup_days',[]);
+  if(!days.includes(d)){ days.push(d); LS.set('scoreup_days',days); }
+}
+function currentStreak(){
+  const days=new Set(LS.get('scoreup_days',[]));
+  let streak=0, d=new Date();
+  while(days.has(d.toISOString().slice(0,10))){ streak++; d.setDate(d.getDate()-1); }
+  return streak;
+}
+/* ---------- practice timer ---------- */
+let timerInt;
+function startTimer(){
+  clearInterval(timerInt);
+  const start=Date.now();
+  timerInt=setInterval(()=>{
+    const el=document.getElementById('ptimer');
+    if(!el){ clearInterval(timerInt); return; }
+    const s=Math.floor((Date.now()-start)/1000);
+    el.textContent='⏱ '+Math.floor(s/60)+':'+String(s%60).padStart(2,'0');
+  },1000);
+}
+function retryHTML(e,btnId){
+  return errHTML(e)+`<button class="btn ghost sm" style="margin-top:10px" onclick="document.getElementById('${btnId}').click()">↻ Retry</button>`;
+}
 
 /* ---------- nav ---------- */
 document.querySelectorAll('nav button').forEach(b=>{
@@ -289,7 +331,7 @@ analyzeBtn.onclick=async()=>{
       ${r.why_wrong?`<h3>Why answers get missed here</h3><p>${esc(r.why_wrong)}</p>`:''}
       <button class="btn sm" onclick="practiceTopic('${esc(r.topic).replace(/'/g,"")}')">Practice this topic →</button>
     </div>`;
-  }catch(e){ box.innerHTML=errHTML(e); }
+  }catch(e){ box.innerHTML=retryHTML(e,'analyzeBtn'); }
   analyzeBtn.disabled=false; analyzeBtn.textContent='Analyze & explain';
 };
 
@@ -327,8 +369,11 @@ Respond ONLY with JSON:
       // Cap runaway explanations
       if(q.explain && q.explain.length>320) q.explain=q.explain.slice(0,320)+'…';
     });
-    box.innerHTML=r.questions.map((q,i)=>renderPractice(q,i)).join('');
-  }catch(e){ box.innerHTML=errHTML(e); }
+    window.currentQs=r.questions;
+    box.innerHTML='<span class="ptimer" id="ptimer">⏱ 0:00</span>'+r.questions.map((q,i)=>renderPractice(q,i)).join('');
+    startTimer();
+    markToday();
+  }catch(e){ box.innerHTML=retryHTML(e,'genBtn'); }
   genBtn.disabled=false; genBtn.textContent='Generate 3 questions';
 };
 function renderPractice(q,i){
@@ -336,7 +381,27 @@ function renderPractice(q,i){
   return `<div class="practice-q" id="pq${i}">
     <div class="qtext">${i+1}. ${esc(q.q)}</div>${opts}
     <div class="explain muted" id="ex${i}" style="display:none;margin-top:8px;font-size:14px">${esc(q.explain)}</div>
+    <div class="qbtns">
+      <button class="btn ghost sm" onclick="saveQ(${i})">★ Save</button>
+      <button class="btn ghost sm" onclick="explainSimpler(${i})">Explain simpler</button>
+    </div>
   </div>`;
+}
+function saveQ(i){
+  const q=(window.currentQs||[])[i]; if(!q) return;
+  saved.push(q); LS.set('scoreup_saved',saved);
+  alert('Saved! View it in the Progress tab.');
+}
+async function explainSimpler(i){
+  const q=(window.currentQs||[])[i]; if(!q) return;
+  const ex=document.getElementById('ex'+i);
+  ex.style.display='block'; ex.textContent='Thinking…';
+  try{
+    const out=await callAI(
+      'You are a patient SAT tutor. Explain in the simplest possible way, plain-text math only (no LaTeX, no backslashes), 2-3 short sentences.',
+      `Question: ${q.q}\nChoices: ${q.choices.join(', ')}\nCorrect answer: ${q.choices[q.answer]}\nExplain simply why that is correct.`, 0.3);
+    ex.textContent=out.replace(/\\(?![nt])/g,'');
+  }catch(e){ ex.textContent='Could not simplify — try again.'; }
 }
 function pick(el,qi,choice,answer){
   const parent=el.parentElement;
@@ -352,17 +417,21 @@ function pick(el,qi,choice,answer){
 function logResult(section, topic, right){
   history.push({ section, topic, right, t:Date.now() });
   LS.set('scoreup_history', history);
+  markToday();
 }
 function renderProgress(){
   const grid=document.getElementById('statGrid');
   const total=history.length;
   const correct=history.filter(h=>h.right).length;
   const acc= total? Math.round(correct/total*100):0;
-  const topics=[...new Set(history.map(h=>h.topic))].length;
+  const est = total>=3 ? (400+Math.round(acc/100*1200)) : null;
+  const streak = currentStreak();
   grid.innerHTML=`
-    <div class="stat"><div class="n">${total}</div><div class="l">Questions analyzed</div></div>
+    ${est?`<div class="stat" style="background:linear-gradient(135deg,var(--accent),var(--accent-2))"><div class="n" style="color:#fff">${est}</div><div class="l" style="color:#fff">Est. SAT score</div></div>`:''}
     <div class="stat"><div class="n">${acc}%</div><div class="l">Accuracy</div></div>
-    <div class="stat"><div class="n">${topics}</div><div class="l">Topics seen</div></div>`;
+    <div class="stat"><div class="n">${total}</div><div class="l">Questions analyzed</div></div>
+    <div class="stat"><div class="n">${streak} 🔥</div><div class="l">Day streak</div></div>`;
+  renderSaved();
   const wa=document.getElementById('weakAreas');
   if(!total){ wa.innerHTML='<div class="empty">No data yet — analyze a few questions and your weak areas appear here.</div>'; return; }
   const byTopic={};
@@ -375,6 +444,14 @@ function renderProgress(){
       <div class="top"><span>${esc(r.k)} <span class="muted">(${r.n})</span></span><span>${r.pct}%</span></div>
       <div class="bar"><span style="width:${r.pct}%"></span></div>
     </div>`).join('');
+}
+function renderSaved(){
+  let sb=document.getElementById('savedBox');
+  if(!sb){ sb=document.createElement('div'); sb.id='savedBox'; sb.className='card'; document.getElementById('progress').appendChild(sb); }
+  sb.innerHTML = saved.length
+    ? '<h3 style="margin:0 0 12px">★ Saved questions</h3>'+saved.map((q,i)=>`<div class="saved-item">${esc(q.q)}<div class="muted" style="margin-top:6px">Answer: ${esc(q.choices[q.answer]||'')}</div></div>`).join('')
+      + '<button class="btn ghost sm" onclick="saved=[];LS.set(\'scoreup_saved\',[]);renderSaved()">Clear saved</button>'
+    : '<div class="empty">No saved questions yet — tap ★ Save on a practice question.</div>';
 }
 document.getElementById('clearBtn').onclick=()=>{
   if(confirm('Clear all analyzed history?')){ history=[]; LS.set('scoreup_history',[]); renderProgress(); }
