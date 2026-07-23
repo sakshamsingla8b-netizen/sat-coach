@@ -298,12 +298,23 @@ async function callAI(system, user, temperature=0.3){
   return data.choices[0].message.content;
 }
 function parseJSON(txt){
-  const m = txt.match(/\{[\s\S]*\}|\[[\s\S]*\]/);
-  let s = m ? m[0] : txt;
+  let s = txt;
+  const start = s.search(/[\{\[]/);
+  if(start>0) s = s.slice(start);
   // Safety net: strip backslashes that aren't valid JSON escapes
   // (e.g. LaTeX like \frac or \( would otherwise break JSON.parse)
   s = s.replace(/\\(?!["\\/bfnrtu])/g, '');
-  return JSON.parse(s);
+  // Strip trailing commas before ] or } (a common LLM slip)
+  s = s.replace(/,\s*([\]}])/g, '$1');
+  try{ return JSON.parse(s); }
+  catch(e){
+    // Salvage a truncated response: pull out every complete question object
+    const objs=[]; const re=/\{[^{}]*\}/g; let m;
+    while((m=re.exec(s))){ try{ objs.push(JSON.parse(m[0])); }catch(_){} }
+    if(objs.length && (objs[0].q || objs[0].choices)) return {questions:objs};
+    if(objs.length) return objs.length===1 ? objs[0] : objs;
+    throw e;
+  }
 }
 
 /* ---------- analyze ---------- */
