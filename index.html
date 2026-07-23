@@ -257,7 +257,11 @@ async function callAI(system, user, temperature=0.3){
 }
 function parseJSON(txt){
   const m = txt.match(/\{[\s\S]*\}|\[[\s\S]*\]/);
-  return JSON.parse(m ? m[0] : txt);
+  let s = m ? m[0] : txt;
+  // Safety net: strip backslashes that aren't valid JSON escapes
+  // (e.g. LaTeX like \frac or \( would otherwise break JSON.parse)
+  s = s.replace(/\\(?!["\\/bfnrtu])/g, '');
+  return JSON.parse(s);
 }
 
 /* ---------- analyze ---------- */
@@ -270,7 +274,7 @@ analyzeBtn.onclick=async()=>{
   const section=document.getElementById('qSection').value;
   const box=document.getElementById('analyzeResult');
   analyzeBtn.disabled=true; analyzeBtn.innerHTML='<span class="spinner"></span> Analyzing…';
-  const sys=`You are an expert SAT tutor. Analyze the student's question and respond ONLY with JSON:
+  const sys=`You are an expert SAT tutor. Write ALL math in plain text — fractions like 5x/2, powers like x^2, multiply as *. NEVER use LaTeX, backslashes, \\frac, \\(, \\), or dollar signs. Analyze the student's question and respond ONLY with JSON:
 {"topic":"short specific topic name","explanation":"clear step-by-step solution","key_concept":"the one idea to remember","why_wrong":"why their answer was likely wrong (or a common trap)","got_it_right":true/false}`;
   const usr=`Section: ${section}\nQuestion: ${q}\nStudent's answer: ${your||'(not given)'}\nCorrect answer: ${correct||'(not given)'}`;
   try{
@@ -307,6 +311,7 @@ Rules:
 1. Solve each question step by step BEFORE writing choices.
 2. "solution" = the exact text of the correct choice, copied verbatim from your choices array (including the letter, e.g. "A) 2").
 3. "explain" = ONE or TWO short sentences max: the key step and the answer. Never mention other options, never second-guess.
+4. Write ALL math in plain text — fractions like 5x/2, powers like x^2, multiply as *. NEVER use LaTeX, backslashes, \\frac, \\(, \\), or dollar signs.
 Respond ONLY with JSON:
 {"questions":[{"q":"question text","choices":["A) ...","B) ...","C) ...","D) ..."],"solution":"A) ...","explain":"..."}]}`;
   try{
